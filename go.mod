@@ -3,7 +3,7 @@ module nanostatus
 go 1.24.0
 
 require (
-	github.com/go-co-op/gocron/v2 v2.19.0
+	github.com/go-co-op/gocron/v2 v2.19.1
 	github.com/mailru/easyjson v0.9.1
 	github.com/rs/zerolog v1.34.0
 	gopkg.in/yaml.v3 v3.0.1
