@@ -11,6 +11,12 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 15
+    groups:
+      go-dependencies:
+        patterns:
+          - "*"
+    assignees:
+      - gregyjames
 
   # Bun/Node dependencies (package.json in src/)
   - package-ecosystem: "bun"
@@ -18,3 +24,9 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 15
+    groups:
+      bun-dependencies:
+        patterns:
+          - "*"
+    assignees:
+      - gregyjames
