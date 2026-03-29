@@ -11,7 +11,7 @@ RUN bun run build.ts --outdir=../dist && \
     find ../dist -type d -empty -delete
 
 # Build stage for Go backend
-FROM golang:1.24-alpine AS backend-builder
+FROM golang:1.25-alpine AS backend-builder
 WORKDIR /app
 COPY go.mod go.sum* ./
 RUN go mod download
