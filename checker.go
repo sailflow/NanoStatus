@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -141,6 +142,7 @@ func checkService(monitorIDOrPtr interface{}) {
 				status = "down"
 				responseTime = 0
 			} else {
+				io.Copy(io.Discard, resp.Body)
 				resp.Body.Close()
 				if resp.StatusCode >= 200 && resp.StatusCode < 400 {
 					status = "up"
