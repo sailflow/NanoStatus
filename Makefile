@@ -11,7 +11,7 @@ build-frontend:
 # Build Go backend with embedded static files
 build-backend:
 	@echo "🔨 Building Go backend..."
-	go build -o nanostatus main.go
+	go build -o nanostatus .
 
 # Clean build artifacts
 clean:
@@ -29,5 +29,5 @@ dev-frontend:
 
 # Development: run Go server (requires dist folder)
 dev-backend:
-	go run main.go
+	go run .
 
