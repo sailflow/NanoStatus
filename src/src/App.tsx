@@ -329,17 +329,29 @@ export function App() {
     monitor.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const isHealthy = stats ? stats.servicesDown === 0 : true;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
+    <div className="min-h-screen bg-[#0a0c10] text-[#e2e8f0] relative overflow-hidden font-sans">
+      {/* Ambient Health Aura */}
+      <div 
+        className={`absolute top-0 left-0 w-full h-[500px] pointer-events-none transition-colors duration-1000 opacity-20 blur-[120px] ${
+          isHealthy ? 'bg-[#00e59b]' : 'bg-[#ff3366]'
+        }`}
+        style={{ transform: 'translateY(-50%)' }}
+      />
+      
+      <div className="relative z-10 flex flex-col h-screen">
       <Header
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onAddService={() => setDialogOpen(true)}
         onExportMonitors={exportMonitors}
         lastUpdate={lastUpdate}
+        isHealthy={isHealthy}
       />
 
-      <div className="container mx-auto px-6 py-8">
+      <div className="flex-1 overflow-hidden px-4 md:px-8 py-6">
         {loading ? (
           <div className="flex items-center justify-center min-h-[60vh]">
             <motion.div
@@ -434,6 +446,7 @@ export function App() {
         onServiceChange={setEditedService}
         onUpdate={updateService}
       />
+      </div>
     </div>
   );
 }

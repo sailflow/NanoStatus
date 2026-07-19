@@ -62,12 +62,12 @@ Finally got a cursor subscription so wanted to build something cool. NanoStatus 
 
 2. **Run the Go server:**
    ```bash
-   go run main.go
+   go run .
    ```
 
    Or build and run:
    ```bash
-   go build -o nanostatus main.go
+   go build -o nanostatus .
    ./nanostatus
    ```
 
@@ -278,7 +278,7 @@ bun install
 bun run build.ts --outdir=../dist
 
 # Build backend
-go build -o nanostatus main.go
+go build -o nanostatus .
 ```
 
 ### Docker Build
