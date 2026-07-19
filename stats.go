@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"sync"
 	"time"
 )
@@ -53,40 +52,20 @@ func updateCachedStats() {
 	totalUptime := stats.TotalUptime
 
 	var avgResponseTime int
-	twentyFourHoursAgo := time.Now().Add(-24 * time.Hour)
 	
-	var avgResult sql.NullFloat64
-	var countResult int64
-	
-	db.Model(&CheckHistory{}).
-		Where("created_at > ? AND response_time > 0 AND status = ?", twentyFourHoursAgo, "up").
-		Count(&countResult)
-	
-	if countResult > 0 {
-		err := db.Raw(`
-			SELECT AVG(response_time) as avg_response_time 
-			FROM check_histories 
-			WHERE created_at > ? AND response_time > 0 AND status = ?
-		`, twentyFourHoursAgo, "up").Row().Scan(&avgResult)
-		
-		if err == nil && avgResult.Valid {
-			avgResponseTime = int(avgResult.Float64)
-		}
+	// Calculate global average response time using the current monitor states.
+	// This is O(monitors) and extremely fast, replacing the O(millions) scan over check_histories.
+	var responseStats struct {
+		TotalResponseTime int64
+		ResponseCount      int64
 	}
+	db.Model(&Monitor{}).
+		Select(`SUM(response_time) as total_response_time, COUNT(*) as response_count`).
+		Where("paused = ? AND response_time > 0 AND status = ?", false, "up").
+		Scan(&responseStats)
 	
-	if countResult == 0 || avgResponseTime == 0 {
-		var fallbackStats struct {
-			TotalResponseTime int64
-			ResponseCount      int64
-		}
-		db.Model(&Monitor{}).
-			Select(`SUM(response_time) as total_response_time, COUNT(*) as response_count`).
-			Where("paused = ? AND response_time > 0 AND status = ?", false, "up").
-			Scan(&fallbackStats)
-		
-		if fallbackStats.ResponseCount > 0 {
-			avgResponseTime = int(fallbackStats.TotalResponseTime / fallbackStats.ResponseCount)
-		}
+	if responseStats.ResponseCount > 0 {
+		avgResponseTime = int(responseStats.TotalResponseTime / responseStats.ResponseCount)
 	}
 
 	overallUptime := 0.0
