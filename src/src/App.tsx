@@ -267,6 +267,23 @@ export function App() {
             });
             setLastUpdate(new Date());
             break;
+
+          case "monitor_update_batch":
+            // Handle array of updated monitors
+            setMonitors((prev) => {
+              const updatedMap = new Map(update.data.map((m: Monitor) => [String(m.id), m]));
+              const updated = prev.map((m) => updatedMap.has(String(m.id)) ? updatedMap.get(String(m.id))! : m);
+              
+              setSelectedMonitor((sel) => {
+                if (sel && updatedMap.has(String(sel.id))) {
+                  return updatedMap.get(String(sel.id))!;
+                }
+                return sel;
+              });
+              return updated;
+            });
+            setLastUpdate(new Date());
+            break;
             
           case "monitor_added":
             // Add new monitor to the list only if it doesn't already exist

@@ -17,7 +17,34 @@ var (
 	statsUpdateCh  chan struct{}
 	statsDebouncer *time.Timer
 	debounceMu     sync.Mutex
+
+	monitorBatch   []Monitor
+	monitorBatchMu sync.Mutex
+	monitorTimer   *time.Timer
 )
+
+// queueMonitorUpdate batches rapid monitor updates into a single broadcast
+func queueMonitorUpdate(monitor Monitor) {
+	monitorBatchMu.Lock()
+	defer monitorBatchMu.Unlock()
+	
+	monitorBatch = append(monitorBatch, monitor)
+	
+	if monitorTimer != nil {
+		monitorTimer.Stop()
+	}
+	
+	monitorTimer = time.AfterFunc(500*time.Millisecond, func() {
+		monitorBatchMu.Lock()
+		batch := monitorBatch
+		monitorBatch = nil
+		monitorBatchMu.Unlock()
+		
+		if len(batch) > 0 {
+			broadcastUpdate("monitor_update_batch", batch)
+		}
+	})
+}
 
 // SSEClient represents a connected SSE client
 type SSEClient struct {

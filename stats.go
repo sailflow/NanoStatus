@@ -4,13 +4,11 @@ import (
 	"database/sql"
 	"sync"
 	"time"
-
-	"github.com/rs/zerolog/log"
 )
 
 var (
-	cachedStats StatsResponse
-	statsMu     sync.RWMutex
+	cachedStats   StatsResponse
+	cachedStatsMu sync.RWMutex
 )
 
 func init() {
@@ -103,15 +101,15 @@ func updateCachedStats() {
 		AvgResponseTime: avgResponseTime,
 	}
 
-	statsMu.Lock()
+	cachedStatsMu.Lock()
 	cachedStats = newStats
-	statsMu.Unlock()
+	cachedStatsMu.Unlock()
 }
 
 // getStats returns the in-memory cached statistics
 func getStats() StatsResponse {
-	statsMu.RLock()
-	defer statsMu.RUnlock()
+	cachedStatsMu.RLock()
+	defer cachedStatsMu.RUnlock()
 	
 	return cachedStats
 }

@@ -203,7 +203,7 @@ func checkService(monitorIDOrPtr interface{}) {
 	}
 
 	// Broadcast monitor update via SSE
-	broadcastUpdate("monitor_update", monitor)
+	queueMonitorUpdate(monitor)
 	
 	// Schedule stats update (debounced to batch rapid updates)
 	broadcastStatsIfChanged()
@@ -242,7 +242,7 @@ func updateAllUptimes() {
 			m.Uptime = newUptime
 			db.Model(&m).UpdateColumn("uptime", newUptime)
 			// Broadcast update since uptime changed
-			broadcastUpdate("monitor_update", m)
+			queueMonitorUpdate(m)
 		}
 	}
 	// Broadcast global stats in case overall uptime changed
