@@ -30,8 +30,9 @@ type MonitorScheduler struct {
 var monitorScheduler *MonitorScheduler
 
 func init() {
-	// Create optimized HTTP transport with connection pooling
+	// Create optimized HTTP transport with connection pooling and HTTP/2 support
 	transport := &http.Transport{
+		ForceAttemptHTTP2:   true,
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 10,
 		IdleConnTimeout:     90 * time.Second,
