@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle2, XCircle, Server, Pause } from "lucide-react";
 import type { Monitor } from "../types";
@@ -9,7 +10,7 @@ interface ServiceCardProps {
   index: number;
 }
 
-export function ServiceCard({ monitor, isSelected, onClick, index }: ServiceCardProps) {
+export const ServiceCard = memo(function ServiceCard({ monitor, isSelected, onClick, index }: ServiceCardProps) {
   const isPaused = monitor.paused || false;
 
   return (
@@ -67,5 +68,14 @@ export function ServiceCard({ monitor, isSelected, onClick, index }: ServiceCard
       </div>
     </motion.div>
   );
-}
+}, (prev, next) => {
+  // Only re-render if visual properties changed (ignoring new onClick closures)
+  return prev.isSelected === next.isSelected &&
+         prev.index === next.index &&
+         prev.monitor.status === next.monitor.status &&
+         prev.monitor.responseTime === next.monitor.responseTime &&
+         prev.monitor.uptime === next.monitor.uptime &&
+         prev.monitor.paused === next.monitor.paused &&
+         prev.monitor.name === next.monitor.name;
+});
 

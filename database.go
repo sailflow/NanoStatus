@@ -265,25 +265,6 @@ func createAggregationViews(db *gorm.DB) error {
 		return err
 	}
 
-	// View 2: global_stats_24h - Pre-aggregates global statistics
-	view2SQL := `
-		CREATE VIEW IF NOT EXISTS global_stats_24h AS
-		SELECT 
-			COUNT(DISTINCT m.id) as total_monitors,
-			SUM(CASE WHEN m.status = 'up' AND m.paused = 0 THEN 1 ELSE 0 END) as services_up,
-			SUM(CASE WHEN m.status = 'down' AND m.paused = 0 THEN 1 ELSE 0 END) as services_down,
-			AVG(CASE WHEN m.paused = 0 THEN m.uptime ELSE NULL END) as overall_uptime,
-			AVG(CASE WHEN ch.status = 'up' AND ch.response_time > 0 AND ch.created_at > datetime('now', '-24 hours') 
-				THEN ch.response_time ELSE NULL END) as avg_response_time
-		FROM monitors m
-		LEFT JOIN check_histories ch ON m.id = ch.monitor_id
-		WHERE m.paused = 0
-	`
-
-	if err := db.Exec(view2SQL).Error; err != nil {
-		return err
-	}
-
 	log.Info().Msg("✅ Created aggregation views")
 	return nil
 }
