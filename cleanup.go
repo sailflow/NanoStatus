@@ -88,8 +88,8 @@ func bucketOldCheckHistory() {
 	
 	log.Info().Int("buckets", len(aggregatedBuckets)).Msg("[Bucketing] Aggregated checks into buckets")
 	
-	// Batch upsert buckets in transactions (25 per transaction)
-	const batchSize = 25
+	// Batch upsert buckets in transactions (500 per transaction for better SQLite performance)
+	const batchSize = 500
 	totalBucketed := 0
 	
 	for i := 0; i < len(aggregatedBuckets); i += batchSize {

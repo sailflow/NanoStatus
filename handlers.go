@@ -2,14 +2,12 @@ package main
 
 import (
 	"bytes"
-	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"regexp"
 	"strconv"
-	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -32,58 +30,18 @@ func setJSONHeaders(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 }
 
-// encodeJSONWithCompression encodes data as JSON with gzip compression if supported
-// Uses easyjson when possible for maximum performance
+// encodeJSONWithCompression streams JSON directly to the response writer.
+// Note: Actual gzip compression is now handled globally by the gziphandler middleware.
 func encodeJSONWithCompression(w http.ResponseWriter, r *http.Request, data interface{}) error {
-	// Check if client accepts gzip
-	acceptsGzip := strings.Contains(r.Header.Get("Accept-Encoding"), "gzip")
-
-	var buf bytes.Buffer
-
-	if acceptsGzip {
-		// Compress the JSON
-		gzw := gzip.NewWriter(&buf)
-		
-		// Try to use easyjson for supported types
-		if marshaler, ok := data.(easyjson.Marshaler); ok {
-			_, err := easyjson.MarshalToWriter(marshaler, gzw)
-			if err != nil {
-				gzw.Close()
-				return err
-			}
-		} else {
-			// Fallback to standard json for unsupported types
-			encoder := json.NewEncoder(gzw)
-			if err := encoder.Encode(data); err != nil {
-				gzw.Close()
-				return err
-			}
-		}
-		
-		if err := gzw.Close(); err != nil {
-			return err
-		}
-		w.Header().Set("Content-Encoding", "gzip")
-		w.Header().Set("Vary", "Accept-Encoding")
-	} else {
-		// Try to use easyjson for supported types
-		if marshaler, ok := data.(easyjson.Marshaler); ok {
-			_, err := easyjson.MarshalToWriter(marshaler, &buf)
-			if err != nil {
-				return err
-			}
-		} else {
-			// Fallback to standard json for unsupported types
-			encoder := json.NewEncoder(&buf)
-			if err := encoder.Encode(data); err != nil {
-				return err
-			}
-		}
+	// Try to use easyjson for supported types
+	if marshaler, ok := data.(easyjson.Marshaler); ok {
+		_, err := easyjson.MarshalToWriter(marshaler, w)
+		return err
 	}
-
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", buf.Len()))
-	_, err := w.Write(buf.Bytes())
-	return err
+	
+	// Fallback to standard json
+	encoder := json.NewEncoder(w)
+	return encoder.Encode(data)
 }
 
 // getResponseTimeData retrieves response time history for a monitor within a time range

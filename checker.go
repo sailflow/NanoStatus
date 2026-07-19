@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
@@ -249,22 +250,7 @@ func updateAllUptimes() {
 	broadcastStatsIfChanged()
 }
 
-// checkAllServices checks all unpaused monitors
-func checkAllServices() {
-	var monitors []Monitor
-	db.Find(&monitors)
-
-	for i := range monitors {
-		// Skip paused monitors
-		if monitors[i].Paused {
-			continue
-		}
-		
-		checkService(&monitors[i])
-		// Small delay between checks to avoid overwhelming servers
-		time.Sleep(500 * time.Millisecond)
-	}
-}
+// checkAllServices removed (replaced by jittered scheduler jobs)
 
 // addMonitorJob adds or updates a job for a monitor
 // Only updates if interval changed or job doesn't exist
@@ -322,14 +308,18 @@ func (ms *MonitorScheduler) addMonitorJob(monitor *Monitor) error {
 	// Capture monitorID in closure
 	monitorID := monitor.ID
 	
-	// Create job that runs immediately, then at the specified interval
+	// Create job that runs at the specified interval
+	// Use a random jitter up to 15s to prevent thundering herd at startup
+	jitterMs := rand.Intn(15000)
+	startTime := time.Now().Add(time.Duration(jitterMs) * time.Millisecond)
+	
 	job, err := ms.scheduler.NewJob(
 		gocron.DurationJob(time.Duration(interval)*time.Second),
 		gocron.NewTask(func() {
 			checkService(monitorID)
 		}),
 		gocron.WithName(fmt.Sprintf("monitor-%d", monitorID)),
-		gocron.WithStartAt(gocron.WithStartImmediately()),
+		gocron.WithStartAt(gocron.WithStartDateTime(startTime)),
 	)
 	
 	if err != nil {
@@ -412,9 +402,6 @@ func (ms *MonitorScheduler) refreshScheduler() {
 
 // startChecker starts the background service checker
 func startChecker() {
-	// Check immediately on startup
-	checkAllServices()
-	
 	// Initial uptime calculation
 	go updateAllUptimes()
 
