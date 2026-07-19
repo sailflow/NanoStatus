@@ -41,10 +41,10 @@ type StatsResponse struct {
 // CheckHistory stores historical check data
 type CheckHistory struct {
 	ID           uint      `gorm:"primaryKey"`
-	MonitorID    uint      `gorm:"not null;index:idx_monitor_created;index:idx_monitor_created_status;index:idx_monitor_created_status_response"`
-	Status       string    `gorm:"not null;index:idx_monitor_created_status;index:idx_monitor_created_status_response"`
-	ResponseTime int       `gorm:"default:0;index:idx_response_time_status;index:idx_monitor_created_status_response"`
-	CreatedAt    time.Time `gorm:"index:idx_monitor_created;index:idx_monitor_created_status;index:idx_monitor_created_status_response"`
+	MonitorID    uint      `gorm:"not null;index:idx_monitor_created"`
+	Status       string    `gorm:"not null"`
+	ResponseTime int       `gorm:"default:0"`
+	CreatedAt    time.Time `gorm:"index:idx_monitor_created;index:idx_created_at"`
 }
 
 // CheckHistoryBucket stores aggregated hourly buckets of check history for older data

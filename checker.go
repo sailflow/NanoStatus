@@ -218,25 +218,47 @@ func updateAllUptimes() {
 		log.Error().Err(err).Msg("[Uptime] Failed to load monitors for uptime update")
 		return
 	}
+	
+	// Create map of monitor ID to array index
+	monitorIdx := make(map[uint]int)
+	for i, m := range monitors {
+		monitorIdx[m.ID] = i
+	}
 
-	for _, m := range monitors {
-		var viewResult struct {
-			TotalChecks   sql.NullInt64
-			UpChecks      sql.NullInt64
-			UptimePercent sql.NullFloat64
+	// Execute a single query to get 24h stats for all monitors at once (fixes N+1 query problem)
+	rows, err := db.Raw(`
+		SELECT monitor_id, total_checks, up_checks, uptime_percent 
+		FROM monitor_stats_24h
+	`).Rows()
+	
+	if err != nil {
+		log.Error().Err(err).Msg("[Uptime] Failed to load monitor stats view")
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var monitorID uint
+		var totalChecks, upChecks sql.NullInt64
+		var uptimePercent sql.NullFloat64
+		
+		if err := rows.Scan(&monitorID, &totalChecks, &upChecks, &uptimePercent); err != nil {
+			continue
 		}
-		err := db.Raw(`
-			SELECT total_checks, up_checks, uptime_percent 
-			FROM monitor_stats_24h 
-			WHERE monitor_id = ?
-		`, m.ID).Row().Scan(&viewResult.TotalChecks, &viewResult.UpChecks, &viewResult.UptimePercent)
-
+		
+		idx, ok := monitorIdx[monitorID]
+		if !ok {
+			continue // Monitor might be paused or deleted
+		}
+		
+		m := monitors[idx]
 		newUptime := m.Uptime
-		if err == nil && viewResult.TotalChecks.Valid && viewResult.TotalChecks.Int64 > 0 {
-			if viewResult.UptimePercent.Valid {
-				newUptime = viewResult.UptimePercent.Float64
+		
+		if totalChecks.Valid && totalChecks.Int64 > 0 {
+			if uptimePercent.Valid {
+				newUptime = uptimePercent.Float64
 			} else {
-				newUptime = float64(viewResult.UpChecks.Int64) / float64(viewResult.TotalChecks.Int64) * 100
+				newUptime = float64(upChecks.Int64) / float64(totalChecks.Int64) * 100
 			}
 		}
 
@@ -247,6 +269,7 @@ func updateAllUptimes() {
 			queueMonitorUpdate(m)
 		}
 	}
+	
 	// Broadcast global stats in case overall uptime changed
 	broadcastStatsIfChanged()
 }
