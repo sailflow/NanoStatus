@@ -3,6 +3,7 @@ module nanostatus
 go 1.25.0
 
 require (
+	github.com/NYTimes/gziphandler v1.1.1
 	github.com/go-co-op/gocron/v2 v2.22.0
 	github.com/mailru/easyjson v0.9.2
 	github.com/rs/zerolog v1.35.1

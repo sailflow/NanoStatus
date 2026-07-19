@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/NYTimes/gziphandler"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
@@ -54,14 +55,14 @@ func main() {
 	// Start cleanup scheduler (runs daily at midnight)
 	go startCleanupScheduler()
 
-	// API routes
-	http.HandleFunc("/api/monitors", apiMonitors)
-	http.HandleFunc("/api/monitors/create", apiCreateMonitor)
-	http.HandleFunc("/api/monitors/export", apiExportMonitors)
-	http.HandleFunc("/api/stats", apiStats)
-	http.HandleFunc("/api/response-time", apiResponseTime)
-	http.HandleFunc("/api/monitor", apiMonitor)
-	http.HandleFunc("/api/events", apiSSE)
+	// API routes - Create a dedicated mux for routes that should be compressed
+	gzipMux := http.NewServeMux()
+	gzipMux.HandleFunc("/api/monitors", apiMonitors)
+	gzipMux.HandleFunc("/api/monitors/create", apiCreateMonitor)
+	gzipMux.HandleFunc("/api/monitors/export", apiExportMonitors)
+	gzipMux.HandleFunc("/api/stats", apiStats)
+	gzipMux.HandleFunc("/api/response-time", apiResponseTime)
+	gzipMux.HandleFunc("/api/monitor", apiMonitor)
 
 	// Serve static files
 	staticFS, err := fs.Sub(staticFiles, "dist")
@@ -72,7 +73,7 @@ func main() {
 	fileServer := http.FileServer(http.FS(staticFS))
 
 	// Handle SPA routing - serve index.html for all non-API routes
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	gzipMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Don't serve index.html for API routes
 		if strings.HasPrefix(r.URL.Path, "/api") {
 			http.NotFound(w, r)
@@ -100,6 +101,15 @@ func main() {
 		fileServer.ServeHTTP(w, r)
 	})
 
+	// Initialize main router
+	mainMux := http.NewServeMux()
+	
+	// SSE route MUST NOT be gzipped to prevent buffering delays
+	mainMux.HandleFunc("/api/events", apiSSE)
+	
+	// Wrap the other routes with gzip compression and attach to main mux
+	mainMux.Handle("/", gziphandler.GzipHandler(gzipMux))
+
 	port := ":8080"
 	if envPort := os.Getenv("PORT"); envPort != "" {
 		port = ":" + envPort
@@ -116,5 +126,5 @@ func main() {
 	log.Info().Msg("   PUT /api/monitor?id=<id> - Update monitor")
 	log.Info().Msg("   DELETE /api/monitor?id=<id> - Delete a monitor")
 	log.Info().Msg("   GET /api/events - Server-Sent Events stream")
-	log.Fatal().Err(http.ListenAndServe(port, nil)).Msg("Server failed")
+	log.Fatal().Err(http.ListenAndServe(port, mainMux)).Msg("Server failed")
 }

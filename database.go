@@ -44,9 +44,9 @@ func initDB() {
 		log.Fatal().Err(err).Msg("Failed to open database")
 	}
 
-	// Configure connection pool for SQLite (single connection recommended)
-	sqlDB.SetMaxOpenConns(1)
-	sqlDB.SetMaxIdleConns(1)
+	// Configure connection pool for SQLite (WAL mode supports concurrent readers)
+	sqlDB.SetMaxOpenConns(15)
+	sqlDB.SetMaxIdleConns(5)
 
 	// Create GORM instance
 	db, err = gorm.Open(sqlite.Dialector{Conn: sqlDB}, &gorm.Config{})

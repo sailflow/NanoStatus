@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -141,6 +142,7 @@ func checkService(monitorIDOrPtr interface{}) {
 				status = "down"
 				responseTime = 0
 			} else {
+				io.Copy(io.Discard, resp.Body)
 				resp.Body.Close()
 				if resp.StatusCode >= 200 && resp.StatusCode < 400 {
 					status = "up"
@@ -180,56 +182,9 @@ func checkService(monitorIDOrPtr interface{}) {
 		}
 	}
 
-	// Calculate uptime from last 24 hours of checks
-	// Try to use monitor_stats_24h view first for better performance
-	var viewResult struct {
-		TotalChecks    sql.NullInt64
-		UpChecks       sql.NullInt64
-		UptimePercent  sql.NullFloat64
-	}
-	
-	viewErr := db.Raw(`
-		SELECT total_checks, up_checks, uptime_percent 
-		FROM monitor_stats_24h 
-		WHERE monitor_id = ?
-	`, monitor.ID).Row().Scan(
-		&viewResult.TotalChecks,
-		&viewResult.UpChecks,
-		&viewResult.UptimePercent,
-	)
-	
-	if viewErr == nil && viewResult.TotalChecks.Valid && viewResult.TotalChecks.Int64 > 0 {
-		// Use view result
-		if viewResult.UptimePercent.Valid {
-			monitor.Uptime = viewResult.UptimePercent.Float64
-		} else {
-			monitor.Uptime = float64(viewResult.UpChecks.Int64) / float64(viewResult.TotalChecks.Int64) * 100
-		}
-		log.Debug().Uint("monitor_id", monitor.ID).Float64("uptime", monitor.Uptime).Msg("[Check] Using view for uptime")
-	} else {
-		// Fallback to direct query if view is unavailable
-		twentyFourHoursAgo := now.Add(-24 * time.Hour)
-		var result struct {
-			TotalCount int64
-			UpCount    int64
-		}
-		
-		uptimeErr := db.Model(&CheckHistory{}).
-			Select("COUNT(*) as total_count, SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END) as up_count").
-			Where("monitor_id = ? AND created_at > ?", monitor.ID, twentyFourHoursAgo).
-			Scan(&result).Error
-		
-		if uptimeErr == nil && result.TotalCount > 0 {
-			monitor.Uptime = float64(result.UpCount) / float64(result.TotalCount) * 100
-		} else {
-			// If no checks in last 24h, use current status
-			if status == "up" {
-				monitor.Uptime = 100.0
-			} else {
-				monitor.Uptime = 0.0
-			}
-		}
-	}
+	// Uptime is now calculated asynchronously by updateAllUptimes()
+	// We retain the current uptime from the database to avoid overwriting it with zero
+
 
 	// Update monitor - only update check-related fields, not CheckInterval
 	// This ensures we don't overwrite CheckInterval changes made via API
@@ -248,9 +203,49 @@ func checkService(monitorIDOrPtr interface{}) {
 	}
 
 	// Broadcast monitor update via SSE
-	broadcastUpdate("monitor_update", monitor)
+	queueMonitorUpdate(monitor)
 	
 	// Schedule stats update (debounced to batch rapid updates)
+	broadcastStatsIfChanged()
+}
+
+// updateAllUptimes periodically updates the uptime for all unpaused monitors
+func updateAllUptimes() {
+	var monitors []Monitor
+	if err := db.Where("paused = ?", false).Find(&monitors).Error; err != nil {
+		log.Error().Err(err).Msg("[Uptime] Failed to load monitors for uptime update")
+		return
+	}
+
+	for _, m := range monitors {
+		var viewResult struct {
+			TotalChecks   sql.NullInt64
+			UpChecks      sql.NullInt64
+			UptimePercent sql.NullFloat64
+		}
+		err := db.Raw(`
+			SELECT total_checks, up_checks, uptime_percent 
+			FROM monitor_stats_24h 
+			WHERE monitor_id = ?
+		`, m.ID).Row().Scan(&viewResult.TotalChecks, &viewResult.UpChecks, &viewResult.UptimePercent)
+
+		newUptime := m.Uptime
+		if err == nil && viewResult.TotalChecks.Valid && viewResult.TotalChecks.Int64 > 0 {
+			if viewResult.UptimePercent.Valid {
+				newUptime = viewResult.UptimePercent.Float64
+			} else {
+				newUptime = float64(viewResult.UpChecks.Int64) / float64(viewResult.TotalChecks.Int64) * 100
+			}
+		}
+
+		if newUptime != m.Uptime {
+			m.Uptime = newUptime
+			db.Model(&m).UpdateColumn("uptime", newUptime)
+			// Broadcast update since uptime changed
+			queueMonitorUpdate(m)
+		}
+	}
+	// Broadcast global stats in case overall uptime changed
 	broadcastStatsIfChanged()
 }
 
@@ -419,6 +414,9 @@ func (ms *MonitorScheduler) refreshScheduler() {
 func startChecker() {
 	// Check immediately on startup
 	checkAllServices()
+	
+	// Initial uptime calculation
+	go updateAllUptimes()
 
 	// Refresh scheduler periodically to pick up new/updated monitors
 	go func() {
@@ -431,6 +429,15 @@ func startChecker() {
 		
 		for range ticker.C {
 			monitorScheduler.refreshScheduler()
+		}
+	}()
+
+	// Uptime calculator running every 5 minutes
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			updateAllUptimes()
 		}
 	}()
 }
