@@ -19,12 +19,12 @@
     "bun-plugin-tailwind": "^0.1.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "framer-motion": "^13.2.0",
-    "lucide-react": "^1.43.0",
+    "framer-motion": "^13.4.0",
+    "lucide-react": "^1.46.0",
     "react": "^19",
     "react-dom": "^19",
     "recharts": "^3.10.1",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
